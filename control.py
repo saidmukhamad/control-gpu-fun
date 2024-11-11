@@ -3,7 +3,7 @@
 import os
 import glob
 import time
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 class GPUFanController:
     def __init__(self):
@@ -24,7 +24,7 @@ class GPUFanController:
                 f.write(value)
             return True
         except (IOError, PermissionError) as e:
-            print(f"Error writing to {path}: {e}")
+            print(f"Error writing '{value}' to {path}: {e}")
             return False
 
     def get_fan_speed(self, speed_path: str) -> Optional[int]:
@@ -54,9 +54,10 @@ class GPUFanController:
 
     def get_temperature(self) -> Optional[float]:
         """Get GPU temperature in Celsius."""
+        print(self.gpu_fan["temp_path"])
         if not self.gpu_fan or not os.path.exists(self.gpu_fan["temp_path"]):
             return None
-            
+                
         temp = self.read_file(self.gpu_fan["temp_path"])
         return float(temp) / 1000 if temp and temp.isdigit() else None
 
@@ -79,14 +80,15 @@ class GPUFanController:
         """Set fan speed as percentage (0-100)."""
         if not self.gpu_fan:
             return False
-            
+                
         speed = max(0, min(100, speed_percentage))
         pwm_value = int((speed / 100) * 255)
         
         # Set manual mode
         enable_path = f"{self.gpu_fan['pwm_path']}_enable"
         if os.path.exists(enable_path):
-            self.write_file(enable_path, "1")
+            if not self.write_file(enable_path, "0"):  # Set to manual mode
+                return False
         
         return self.write_file(self.gpu_fan['pwm_path'], str(pwm_value))
 
@@ -104,7 +106,9 @@ class GPUFanController:
                     speed_percent = self.calculate_fan_speed(temp)
                     current_rpm = self.get_fan_speed(self.gpu_fan["speed_path"])
                     
-                    self.set_fan_speed(speed_percent)
+                    if not self.set_fan_speed(speed_percent):
+                        print("\nFailed to set fan speed.")
+                    
                     print(f"\rTemp: {temp:.1f}°C | Fan: {speed_percent}% | RPM: {current_rpm}", 
                           end='', flush=True)
                 time.sleep(2)
